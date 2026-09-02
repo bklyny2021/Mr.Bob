@@ -4,6 +4,8 @@
 
 > **Work in progress.** Built on the original AI-Player mod by [shasankp000](https://github.com/shasankp000) — all credit for the base mod goes to the original creator. This fork adds custom sight, mapping, and companion features.
 
+> This is my starting point before I move on to the Unreal Engine. You have to crawl before you walk.
+
 ---
 
 # Official website
