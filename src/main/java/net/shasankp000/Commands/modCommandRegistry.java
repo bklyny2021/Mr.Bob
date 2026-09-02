@@ -21,6 +21,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec2;
@@ -1136,6 +1138,29 @@ public class modCommandRegistry {
     }
 
 
+    /**
+     * Gives Mr.Bob his starting gear: a diamond sword, full diamond armor,
+     * food (bread), and wood (oak logs). He can fight with the sword, and
+     * when he dies you can loot all of it from his drops.
+     */
+    private static void giveBotStartingGear(ServerPlayer bot) {
+        try {
+            // Diamond sword in main hand
+            bot.getInventory().setItem(0, new ItemStack(Items.DIAMOND_SWORD, 1));
+            // Diamond armor
+            bot.getInventory().setItem(36, new ItemStack(Items.DIAMOND_HELMET, 1));
+            bot.getInventory().setItem(37, new ItemStack(Items.DIAMOND_CHESTPLATE, 1));
+            bot.getInventory().setItem(38, new ItemStack(Items.DIAMOND_LEGGINGS, 1));
+            bot.getInventory().setItem(39, new ItemStack(Items.DIAMOND_BOOTS, 1));
+            // Food (bread) and wood (oak logs) in the hotbar
+            bot.getInventory().setItem(1, new ItemStack(Items.BREAD, 16));
+            bot.getInventory().setItem(2, new ItemStack(Items.OAK_LOG, 32));
+            LOGGER.info("Gave {} starting gear: diamond sword, diamond armor, bread, oak logs", bot.getName().getString());
+        } catch (Exception e) {
+            LOGGER.error("Failed to give starting gear to {}: {}", bot.getName().getString(), e.getMessage());
+        }
+    }
+
     private static void spawnBot(CommandContext<CommandSourceStack> context, String spawnMode) {
         LOGGER.info("========== SPAWNING BOT IN MODE: {} ==========", spawnMode);
 
@@ -1214,6 +1239,10 @@ public class modCommandRegistry {
                 final String spawnedBotName = bot.getName().getString();
 
                 BotEventHandler.setActiveBot(server, bot);
+
+                // ── Mr.Bob spawns geared up: diamond sword + full diamond armor ──
+                // So he can actually fight, and when he dies you can loot his gear.
+                giveBotStartingGear(bot);
 
                 Objects.requireNonNull(bot.getAttribute(Attributes.KNOCKBACK_RESISTANCE)).setBaseValue(0.0);
 

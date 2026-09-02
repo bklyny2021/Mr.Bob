@@ -18,6 +18,8 @@ import java.util.concurrent.TimeUnit;
  *   <li><b>Drift-check / companion tick (every 2 s):</b> runs the companion
  *       stance ticks so FOLLOW bots navigate toward their target player and
  *       STAY bots return to their anchor if knocked back.</li>
+ *   <li><b>Status check (every 20 s):</b> logs Mr.Bob's health, hunger,
+ *       position, and inventory so he knows what to do next.</li>
  * </ol>
  */
 public class AutonomousScheduler {
@@ -48,6 +50,12 @@ public class AutonomousScheduler {
         scheduler.scheduleAtFixedRate(
                 this::driftCheckTask,
                 2, 2, TimeUnit.SECONDS
+        );
+
+        // Task 3: status check every 20 seconds so Mr.Bob knows what to do
+        scheduler.scheduleAtFixedRate(
+                this::statusCheckTask,
+                20, 20, TimeUnit.SECONDS
         );
 
         LOGGER.info("[autonomous-scheduler] Started for bot '{}'", botName);
@@ -97,6 +105,18 @@ public class AutonomousScheduler {
             companion.stayDriftCheck(botName);
         } catch (Exception e) {
             LOGGER.error("[autonomous-scheduler] Drift-check task error for '{}': {}", botName, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Runs Mr.Bob's periodic status check (every 20 s) so he knows his
+     * health, hunger, position, and what to do next.
+     */
+    private void statusCheckTask() {
+        try {
+            engine.checkStatus();
+        } catch (Exception e) {
+            LOGGER.error("[autonomous-scheduler] Status-check task error for '{}': {}", botName, e.getMessage(), e);
         }
     }
 

@@ -162,7 +162,38 @@ public class ollamaClient {
     }
 
     private static void routeIntent(String message, CommandSourceStack botSource, UUID playerUUID) throws Exception {
-        NLPProcessor.Intent intent = NLPProcessor.getIntention(message);
+        // ── Mr.Bob's sight: prepend what he can see so the LLM knows his surroundings ──
+        // Build the sight-augmented message as an effectively-final variable so the
+        // lambdas below can capture it (Java requires effectively-final captures).
+        String sight = "";
+        ServerPlayer botPlayer = botSource.getPlayer();
+        if (botPlayer != null) {
+            sight = net.shasankp000.PlayerUtils.Vision.describeSurroundings(botPlayer);
+        }
+        final String llmMessage = sight.isEmpty()
+                ? message
+                : "[What I can see right now]\n" + sight + "\n[Player said]\n" + message;
+
+        // ── Mr.Bob uses his wiki EVERY time you speak to him ──
+        // Inject the full memory wiki into the message so he recalls everything
+        // he's learned and every past conversation before responding.
+        String wiki = net.shasankp000.PlayerUtils.MrBobWiki.load();
+        final String finalMessage = (wiki == null || wiki.isBlank())
+                ? llmMessage
+                : "[Your memory wiki — recall this before answering]\n" + wiki
+                + "\n[Player said]\n" + message;
+
+        // ── Mr.Bob remembers our conversations ──
+        // Store what the player said so he can recall it in future sessions.
+        try {
+            String speaker = botSource.getPlayer() != null
+                    ? botSource.getPlayer().getName().getString() : "Player";
+            net.shasankp000.PlayerUtils.MrBobWiki.rememberConversation(speaker, message);
+        } catch (Exception ignored) {
+            // never let memory failure break the chat
+        }
+
+        NLPProcessor.Intent intent = NLPProcessor.getIntention(finalMessage);
         LLMClient configuredClient = createConfiguredServiceClient();
 
         LOGGER.info("\uD83D\uDCE8 Received intent: {}", intent);
@@ -173,9 +204,9 @@ public class ollamaClient {
                     Thread.currentThread().setName("RAG2-Worker");
                     LOGGER.info("\uD83E\uDDF5 Started RAG2 worker thread");
                     if (configuredClient != null) {
-                        RAG2.run(message, botSource, intent, configuredClient);
+                        RAG2.run(finalMessage, botSource, intent, configuredClient);
                     } else {
-                        RAG2.run(message, botSource, intent);
+                        RAG2.run(finalMessage, botSource, intent);
                     }
                     LOGGER.info("\u2705 Finished RAG2 worker thread");
                 });
@@ -187,9 +218,9 @@ public class ollamaClient {
                     LOGGER.info("\uD83E\uDDF5 Started FunctionCallerV2 worker thread");
                     new FunctionCallerV2(botSource, playerUUID);
                     if (configuredClient != null) {
-                        FunctionCallerV2.run(message, configuredClient);
+                        FunctionCallerV2.run(finalMessage, configuredClient);
                     } else {
-                        FunctionCallerV2.run(message);
+                        FunctionCallerV2.run(finalMessage);
                     }
                     LOGGER.info("\u2705 Finished FunctionCallerV2 worker thread");
                 });
@@ -200,8 +231,8 @@ public class ollamaClient {
                 ChatUtils.sendChatMessages(botSource, "\uD83D\uDD0D Reanalyzing...");
 
                 NLPProcessor.Intent retry = configuredClient != null
-                        ? NLPProcessor.getIntentionFromLLM(message, configuredClient)
-                        : retryIntentLLM(message);
+                        ? NLPProcessor.getIntentionFromLLM(finalMessage, configuredClient)
+                        : retryIntentLLM(finalMessage);
 
                 LOGGER.info("\uD83D\uDCE8 Retry intent: {}", retry);
 
@@ -210,9 +241,9 @@ public class ollamaClient {
                         Thread.currentThread().setName("RAG2-Retry-Worker");
                         LOGGER.info("\uD83E\uDDF5 Started RAG2 retry worker thread");
                         if (configuredClient != null) {
-                            RAG2.run(message, botSource, retry, configuredClient);
+                            RAG2.run(finalMessage, botSource, retry, configuredClient);
                         } else {
-                            RAG2.run(message, botSource, retry);
+                            RAG2.run(finalMessage, botSource, retry);
                         }
                         LOGGER.info("\u2705 Finished RAG2 retry worker thread");
                     });
@@ -222,9 +253,9 @@ public class ollamaClient {
                         LOGGER.info("\uD83E\uDDF5 Started FunctionCallerV2 retry worker thread");
                         new FunctionCallerV2(botSource, playerUUID);
                         if (configuredClient != null) {
-                            FunctionCallerV2.run(message, configuredClient);
-                        } else {
-                            FunctionCallerV2.run(message);
+                            FunctionCallerV2.run(finalMessage, configuredClient);
+                            } else {
+                            FunctionCallerV2.run(finalMessage);
                         }
                         LOGGER.info("\u2705 Finished FunctionCallerV2 worker thread");
                     });
@@ -347,6 +378,7 @@ public class ollamaClient {
 
         return
                 "You are a Minecraft player named " + botName + " who is connected to Minecraft using a mod. You exist within the Minecraft world and can interact with the player and the environment just like any other player in the game. Your job is to engage in conversations with the player, respond to their questions, offer help, and provide information about the game. Address the player directly and appropriately, responding to their name or as 'Player' if their name is not known. Do not refer to the player as " + botName + ", only address yourself as " + botName + " Keep your responses relevant to Minecraft and make sure to stay in character as a helpful and knowledgeable assistant within the game."
+                        + net.shasankp000.PlayerUtils.MrBobWiki.asSystemPromptSection()
                         +
                         """
 

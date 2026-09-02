@@ -142,6 +142,13 @@ public class StanceController {
             return;
         }
 
+        // ── Cave escape: if Mr.Bob fell into a hole/cave, dig him out first ──
+        // Once he's back on the surface, the follow logic below resumes.
+        if (net.shasankp000.PlayerUtils.CaveEscape.escapeIfStuck(bot)) {
+            LOGGER.info("[StanceController] {} escaped cave, resuming FOLLOW", botName);
+            return;
+        }
+
         String targetName = stance.followTarget();
         if (targetName == null) return;
 

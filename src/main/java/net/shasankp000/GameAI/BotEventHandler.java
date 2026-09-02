@@ -13,6 +13,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.monster.cubemob.Slime;
 import net.minecraft.world.item.ItemStack;
@@ -71,6 +72,10 @@ public class BotEventHandler {
     private static final Map<String, String> currentAction = new HashMap<>();
     private static final Map<String, Long> actionStartTime = new HashMap<>();
     private static final long ACTION_TIMEOUT_MS = 5000; // 5 second timeout per action
+
+    // Target-locking: each bot locks onto ONE target and keeps attacking it until
+    // it dies (or despawns), then picks the next highest-threat target.
+    private static final Map<String, UUID> lockedTarget = new HashMap<>();
 
     // State transition tracking for lookahead learning
     private static final StateTransition.TransitionHistory transitionHistory =
@@ -792,24 +797,12 @@ public class BotEventHandler {
                         .toList();
 
                 if (!hostileEntities.isEmpty()) {
-                    // Gather state information
-                    State currentState = createInitialState(bot);
-
-//                double riskAppetite = currentState.getRiskAppetite();
-//
-                    Map<StateActions.Action, Double> riskMap = currentState.getRiskMap();
-
-
-
-                    // Choose action
-                    StateActions.Action chosenAction = rlAgentHook.chooseActionPlayMode(currentState, qTable, riskMap, "detectAndReactPlayMode", transitionHistory);
-
-
-                    // Log chosen action for debugging
-                    System.out.println("Play Mode - Chosen action: " + chosenAction);
-
-                    // Execute action
-                    executeAction(chosenAction, botSource);
+                    // ── Mr.Bob ALWAYS fights back: attack the locked target directly.
+                    //    Do NOT rely on the Q-table (RL training data) — a bot spawned in
+                    //    play mode without training has an empty Q-table and would just
+                    //    stand there. Force combat so he actually kills mobs. ──
+                    System.out.println("⚔ Mr.Bob combat: " + hostileEntities.size() + " hostile(s) detected — attacking");
+                    executeAction(StateActions.Action.ATTACK, botSource);
                 }
                 else if (DangerZoneDetector.detectDangerZone(bot, 10, 10, 10) <= 5.0 && DangerZoneDetector.detectDangerZone(bot, 10, 10, 10) > 0.0) {
 
@@ -1054,10 +1047,12 @@ public class BotEventHandler {
             case "attack":
                 System.out.println("Performing action: ATTACK (intelligent combat)");
 
-                // ⏸ BLOCK if action in progress
+                // ⏸ BLOCK if action in progress — but force-clear stale ones so
+                // combat never gets stuck "looking" at a mob.
                 if (isActionInProgress(botName)) {
-                    System.out.println("❌ ATTACK blocked - another action in progress: " + currentAction.get(botName));
-                    break;
+                    System.out.println("⚠ ATTACK was blocked by '" + currentAction.get(botName)
+                            + "' — force-clearing so Mr.Bob keeps fighting");
+                    completeAction(botName);
                 }
 
                 startAction(botName, "ATTACK");
@@ -1069,8 +1064,32 @@ public class BotEventHandler {
                     break;
                 }
 
-                // ✨ INTELLIGENT TARGETING: Prioritize high-threat entities (e.g., Creeper > Zombie)
-                Entity attackTarget = selectHighestThreatTarget(bot, AutoFaceEntity.hostileEntities);
+                // ✨ TARGET-LOCKING: keep attacking the SAME target until it dies,
+                // then pick the next highest-threat target.
+                Entity attackTarget = null;
+                UUID lockedId = lockedTarget.get(botName);
+                if (lockedId != null) {
+                    // Find the locked target among current hostiles (still alive)
+                    for (Entity e : AutoFaceEntity.hostileEntities) {
+                        if (e.getUUID().equals(lockedId) && e.isAlive()) {
+                            attackTarget = e;
+                            break;
+                        }
+                    }
+                    if (attackTarget == null) {
+                        // Locked target is dead/gone — release the lock
+                        lockedTarget.remove(botName);
+                        System.out.println("🔓 Target lock released (target dead/despawned)");
+                    }
+                }
+                if (attackTarget == null) {
+                    // No valid lock — pick the highest-threat target and lock it
+                    attackTarget = selectHighestThreatTarget(bot, AutoFaceEntity.hostileEntities);
+                    if (attackTarget != null) {
+                        lockedTarget.put(botName, attackTarget.getUUID());
+                        System.out.println("🔒 Locked onto target: " + attackTarget.getName().getString());
+                    }
+                }
 
                 if (attackTarget == null) {
                     System.out.println("Could not find attack target");
@@ -1097,7 +1116,7 @@ public class BotEventHandler {
                     // Wait for shoot to complete (with timeout)
                     waitForActionCompletion(botName, 3000); // 3 second max wait
                 } else {
-                    // MELEE ATTACK STRATEGY
+                    // MELEE ATTACK STRATEGY — chase the target, then keep swinging until it DIES.
                     System.out.println("Using MELEE attack (close range or no ranged weapon)");
 
                     // ⚔ AUTO-EQUIP BEST MELEE WEAPON (if not already holding one)
@@ -1108,11 +1127,69 @@ public class BotEventHandler {
                         System.out.println("⚠ No melee weapon found, attacking with current item");
                     }
 
-                    FaceClosestEntity.faceClosestEntity(bot, AutoFaceEntity.hostileEntities);
-                    server.getCommands().performPrefixedCommand(botSource, "/player " + botName + " attack");
+                    // ── Mr.Bob CHASES the target so he can actually hit it ──
+                    // If the mob is more than ~3 blocks away, navigate toward it first.
+                    // Only swing when close enough to land a hit.
+                    double chaseDist = Math.sqrt(attackTarget.distanceToSqr(bot));
+                    if (chaseDist > 3.0) {
+                        System.out.println("🏃 Chasing " + attackTarget.getName().getString()
+                                + " (" + String.format("%.1f", chaseDist) + "m away)");
+                        try {
+                            net.shasankp000.PathFinding.NavigationService.navigate(
+                                    bot,
+                                    attackTarget.blockPosition(),
+                                    net.shasankp000.PathFinding.NavigationOptions.of(true)
+                            ).get(3, java.util.concurrent.TimeUnit.SECONDS);
+                        } catch (Exception e) {
+                            System.out.println("Chase navigation failed: " + e.getMessage());
+                        }
+                        // Re-check distance after chasing
+                        chaseDist = Math.sqrt(attackTarget.distanceToSqr(bot));
+                    }
 
-                    // Melee completes instantly
+                    // ── Mr.Bob KILLS: chase + attack NON-STOP until the target dies ──
+                    // No swing cap — he keeps chasing and swinging until the mob is dead.
+                    int swings = 0;
+                    int maxSwings = 40; // generous cap to avoid infinite loop
+                    while (attackTarget != null && attackTarget.isAlive() && swings < maxSwings) {
+                        // If the target moved out of range, chase it (aggressively).
+                        double d = Math.sqrt(attackTarget.distanceToSqr(bot));
+                        if (d > 2.5) {
+                            try {
+                                net.shasankp000.PathFinding.NavigationService.navigate(
+                                        bot, attackTarget.blockPosition(),
+                                        net.shasankp000.PathFinding.NavigationOptions.of(true)
+                                ).get(1, java.util.concurrent.TimeUnit.SECONDS);
+                            } catch (Exception ignored) {}
+                        }
+                        FaceClosestEntity.faceClosestEntity(bot, AutoFaceEntity.hostileEntities);
+                        server.getCommands().performPrefixedCommand(botSource, "/player " + botName + " attack");
+                        swings++;
+                        System.out.println("⚔ Swing " + swings + " at " + attackTarget.getName().getString()
+                                + " (HP " + String.format("%.0f", ((LivingEntity) attackTarget).getHealth()) + ")");
+                        try {
+                            Thread.sleep(80); // very fast swings — 80ms between hits
+                        } catch (InterruptedException ignored) {
+                            break;
+                        }
+                    }
+                    if (attackTarget != null && !attackTarget.isAlive()) {
+                        System.out.println("💀 Target killed: " + attackTarget.getName().getString());
+                        net.shasankp000.PlayerUtils.MrBobWiki.learn("I killed a " + attackTarget.getName().getString()
+                                + " in combat at x=" + (int) bot.getX() + " y=" + (int) bot.getY() + " z=" + (int) bot.getZ());
+                        lockedTarget.remove(botName); // release lock, pick next target
+                    }
+
                     completeAction(botName);
+
+                    // ── Return to follow mode after combat ──
+                    // Resume navigation (which was suspended for the threat) so
+                    // Mr.Bob goes back to following the player instead of staying
+                    // stuck in attack mode.
+                    try {
+                        net.shasankp000.PathFinding.NavigationService.resume(
+                                bot.getUUID(), net.shasankp000.PathFinding.SuspensionReason.THREAT);
+                    } catch (Exception ignored) {}
                 }
                 break;
             case "shootArrow":

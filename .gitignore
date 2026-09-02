@@ -40,3 +40,9 @@ hs_err_*.log
 replay_*.log
 *.hprof
 *.jfr
+
+# Mr.Bob local artifacts (not for public repo)
+releases/
+removed_mods_backup/
+ai-companion_backup_*/
+ai-companion/

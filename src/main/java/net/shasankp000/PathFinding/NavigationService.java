@@ -205,7 +205,9 @@ public final class NavigationService {
                                       CompletableFuture<NavigationResult> future) {
         NavigationSession previous = SESSIONS.get(player.getUUID());
         if (previous != null) finish(previous, NavigationResult.Status.CANCELLED, "Replaced by a newer route");
-        if (!player.isAlive() || player.hasDisconnected()) {
+        // A Carpet fake player (our AI bot) reports hasDisconnected()==true even though it is
+        // alive and online. Treat our bots as always available so navigation can move them.
+        if (!player.isAlive() || (player.hasDisconnected() && !isOurBot(player))) {
             future.complete(new NavigationResult(NavigationResult.Status.PLAYER_UNAVAILABLE,
                     player.blockPosition(), "Player is unavailable"));
             return;
@@ -216,13 +218,18 @@ public final class NavigationService {
         if (!isSuspended(session)) startPlanning(session, player, ReplanReason.INITIAL);
     }
 
+    /** True if the player is one of our AI bots (a Carpet fake player), not a real human. */
+    private static boolean isOurBot(ServerPlayer player) {
+        return player instanceof net.shasankp000.Entity.createFakePlayer;
+    }
+
     private static void tick(MinecraftServer server) {
         if (SESSIONS.isEmpty()) return;
         List<NavigationSession> planners = new ArrayList<>();
         for (NavigationSession session : new ArrayList<>(SESSIONS.values())) {
             if (SESSIONS.get(session.botId) != session) continue;
             ServerPlayer player = server.getPlayerList().getPlayer(session.botId);
-            if (player == null || !player.isAlive() || player.hasDisconnected()) {
+            if (player == null || !player.isAlive() || (player.hasDisconnected() && !isOurBot(player))) {
                 finish(session, NavigationResult.Status.PLAYER_UNAVAILABLE, "Player became unavailable");
                 continue;
             }

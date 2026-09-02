@@ -186,6 +186,34 @@ public class AutonomousGoalEngine {
         generateAndEnqueueGoals();
     }
 
+    /**
+     * Periodic status check (every 20 s). Logs Mr.Bob's current state so he
+     * "knows what to do" — health, hunger, position, time, held item, and
+     * inventory. If he's low on health or hunger, this feeds the next re-plan
+     * so he takes care of himself.
+     */
+    public void checkStatus() {
+        try {
+            ServerPlayer bot = resolveBot();
+            if (bot == null) {
+                LOGGER.warn("[status] Bot '{}' not found — skipping status check", botName);
+                return;
+            }
+            String snapshot = buildStateSnapshot(bot);
+            LOGGER.info("[status] {} status check:\n{}", botName, snapshot);
+
+            // If low on health or hunger, trigger a re-plan so he acts on it.
+            if (bot.getHealth() < bot.getMaxHealth() * 0.4 || bot.getFoodData().getFoodLevel() < 6) {
+                LOGGER.info("[status] {} is low on health/hunger — re-planning to take care of himself", botName);
+                if (goalQueue.isEmpty() && !isPlayerControlled()) {
+                    triggerReplan();
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.error("[status] Status check failed for '{}': {}", botName, e.getMessage());
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Goal generation (LLM call)
     // -------------------------------------------------------------------------
@@ -266,6 +294,33 @@ public class AutonomousGoalEngine {
                 // Block up to 5 s waiting for a goal
                 GoalQueueEntry entry = goalQueue.poll(5, TimeUnit.SECONDS);
                 if (entry == null) continue;
+
+                // ── FOLLOW mode takes priority ──
+                // If Mr.Bob is in FOLLOW stance, do NOT run autonomous goals
+                // (gather wood, build shelter, etc.) — those fight the follow.
+                // Let the follow controller handle his movement instead.
+                try {
+                    if (net.shasankp000.PathFinding.BotStance.getStance(botName).mode()
+                            == net.shasankp000.PathFinding.BotStance.Mode.FOLLOW) {
+                        LOGGER.info("[autonomous] {} is in FOLLOW mode — skipping autonomous goal '{}'", botName, entry.goalText());
+                        continue;
+                    }
+                } catch (Exception e) {
+                    LOGGER.warn("[autonomous] Follow-mode check failed: {}", e.getMessage());
+                }
+
+                // ── Cave escape: if Mr.Bob is stuck underground, dig him out FIRST ──
+                // This runs in ALL modes (mining, exploring, following) so he never
+                // gets stuck in a hole he dug himself.
+                try {
+                    ServerPlayer bot = resolveBot();
+                    if (bot != null && net.shasankp000.PlayerUtils.CaveEscape.escapeIfStuck(bot)) {
+                        LOGGER.info("[autonomous] {} escaped cave before goal '{}'", botName, entry.goalText());
+                        continue; // skip this goal, let the loop re-plan
+                    }
+                } catch (Exception e) {
+                    LOGGER.warn("[autonomous] Cave escape check failed: {}", e.getMessage());
+                }
 
                 goalExecuting.set(true);
                 try {

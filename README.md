@@ -1,3 +1,11 @@
+# Mr.Bob — AI Minecraft Companion
+
+**Mr.Bob** is my custom fork of the [AI-Player](https://github.com/shasankp000/AI-Player) mod — an AI Minecraft bot with real sight and mapping. He sees, he maps, he follows, he fights, and you can talk to him.
+
+> **Work in progress.** Built on the original AI-Player mod by [shasankp000](https://github.com/shasankp000) — all credit for the base mod goes to the original creator. This fork adds custom sight, mapping, and companion features.
+
+---
+
 # Official website
 
 https://shasankp000.github.io/AI-Player-Website/
