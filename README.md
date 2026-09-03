@@ -8,6 +8,55 @@
 
 ---
 
+# Mr.Bob's behavior
+
+Mr.Bob is self-sufficient. He keeps the base stocked, builds on his own, and never stands idle. His home is his **crafting table** — everything he does happens within **50 blocks of it**, so he's always close enough to help.
+
+## Never-run-out list
+He keeps these stocked in storage at all times, in crafting-menu order. If any drops below its number, he restocks it before doing anything else:
+
+1. **Wood — 50**
+2. **Axe — 5**
+3. **Planks — 32**
+4. **Pickaxe — 3**
+5. **Sticks — 16**
+6. **Crafting table — 2**
+7. **Shovel — 2**
+8. **Hoe — 2**
+9. **Sword — 3**
+10. **Torch — 20**
+11. **Furnace — 2**
+12. **Chest — 4**
+13. **Stone — 32**
+14. **Coal — 16**
+15. **Iron ingots — 16**
+16. **Shield — 2**
+17. **Armor set — 1 full set**
+18. **Water bucket — 1**
+19. **Bed — 1**
+20. **Cooked food — 20**
+21. **String — 8**
+22. **Glass — 8**
+23. **Ladder — 8**
+
+## Build list
+Once the supplies are stocked, he builds through this list in order — safety first, then useful, then beautiful, then grand:
+
+- **Safety & Light:** lamp posts, perimeter wall, well
+- **Paths & Infrastructure:** main path, bridge, gate
+- **Utility:** farm, storage shed, smelting station, compost area
+- **Comfort & Decoration:** garden, fountain, bench & table, campfire circle, lookout tower
+- **Landmarks & Grand Builds:** statue, lighthouse, windmill, greenhouse, monument
+
+## The rules he works by
+- **Works forward from #1** — never skips ahead, and always keeps the early tasks done.
+- **Never runs out** — if a supply drops below its number, he restocks it before anything else.
+- **Stays close** — never travels more than 50 blocks from his crafting table.
+- **Never touches your house** — he builds new things, never tears down what you made.
+- **Always has something to do** — he never stands idle during the day.
+
+---
+
 # Official website
 
 https://shasankp000.github.io/AI-Player-Website/
