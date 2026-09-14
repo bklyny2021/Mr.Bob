@@ -5,6 +5,9 @@
 
 **Mr.Bob** is my custom fork of the [AI-Player](https://github.com/shasankp000/AI-Player) mod — an AI Minecraft bot with real sight and mapping. He sees, he maps, he follows, he fights, and you can talk to him.
 
+> 📋 **Full current status — what works and what's known:** see [STATUS.md](STATUS.md).
+
+
 > Started as my first step before moving on to the Unreal Engine — you have to crawl before you walk. That goal is now met.
 
 ---
