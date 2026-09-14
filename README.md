@@ -1,10 +1,11 @@
 # Mr.Bob — AI Minecraft Companion
 
+> ## ✅ Project Complete
+> **Mr.Bob is complete and fully working.** He plays Minecraft on his own — stores items and uses them, hunts, follows, builds, and does anything he's told. Spawn him (and his companions) and watch him work. Built on the original AI-Player mod by [shasankp000](https://github.com/shasankp000) — all credit for the base mod goes to the original creator. This fork adds custom sight, mapping, and companion features.
+
 **Mr.Bob** is my custom fork of the [AI-Player](https://github.com/shasankp000/AI-Player) mod — an AI Minecraft bot with real sight and mapping. He sees, he maps, he follows, he fights, and you can talk to him.
 
-> **Work in progress.** Built on the original AI-Player mod by [shasankp000](https://github.com/shasankp000) — all credit for the base mod goes to the original creator. This fork adds custom sight, mapping, and companion features.
-
-> This is my starting point before I move on to the Unreal Engine. You have to crawl before you walk.
+> Started as my first step before moving on to the Unreal Engine — you have to crawl before you walk. That goal is now met.
 
 ---
 
