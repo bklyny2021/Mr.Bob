@@ -17,6 +17,20 @@
   - Build: `build_structure` (spends inventory materials, restocks with `get`)
 - **Persistent companions** — parked companions are restored + re-attached to the brain on reload (`restored 1 parked companion(s)` / `re-attached brain to restored companion bob`).
 
+## 🧠 Per-companion LLM routing — each bot has its own small AI
+
+Every companion runs its **own dedicated small language model**, so each bot has a distinct brain. Routing is per-companion in `aicompanion.json` via the `model` field; a blank field falls back to the global `llm.model`.
+
+| Companion | Model |
+|---|---|
+| **bob** | `mrbob-base:latest` |
+| **Lady-D** | `qwen2.5:3b` |
+| **Lo-Lifes-Boo** | `qwen2.5:1.5b` |
+| **wargod** | `qwen3:1.7b` |
+| **BryanBoo** | `qwen3:1.7b` |
+
+All served by the portable Ollama on the 4060Ti (`localhost:11435`). The small models (1.5B–4B) keep the whole roster responsive on one GPU — weights can be shared, so extra bots only add a little KV cache each, not a full reload per bot.
+
 ## ⚠️ Not working / known issues
 
 - **TTS (voice) is off** — config sets `tts=af_heart @ http://localhost:8880`, but the Kokoro voice server is a **Docker container and this machine has no Docker/WSL2**, so voice can never start. **Text chat works; there is no voice output.** The mod self-quiets after a few minutes of failed posts.
